@@ -10,7 +10,12 @@
 //  Originally from: http://blog.stormyprods.com/2009/10/simple-scrolling-uilabel-for-iphone.html
 //
 //  Permission is granted to use this code free of charge for any project.
-//
+//  参考资料:https://blog.csdn.net/qq_20913021/article/details/51373252
+//  thanks for https://github.com/cbess/AutoScrollLabel#rd
+//  本人做的客制化:
+//  1.修正了编译器提示scrolling循环引用告警的问题.
+//  2.使用CADisplayLink进行文字的滑动
+//  3.添加了useCADisplayLink参数,可选使用CADisplayLink进行滑动
 
 #import <UIKit/UIKit.h>
 
@@ -33,6 +38,7 @@ typedef NS_ENUM(NSInteger, CBAutoScrollDirection) {
  * @discussion UIViewAnimationOptionAllowUserInteraction is always applied to the animations.
  */
 @property (nonatomic) UIViewAnimationOptions animationOptions;
+@property (nonatomic,assign)BOOL useCADisplayLink;// by cadisplaylink instead of UIAnimation UIViewAnimationOptionCurveLinear
 
 /**
  * Returns YES, if it is actively scrolling, NO if it has paused or if text is within bounds (disables scrolling).
@@ -48,6 +54,7 @@ typedef NS_ENUM(NSInteger, CBAutoScrollDirection) {
 @property (nonatomic) NSTextAlignment textAlignment; // only applies when not auto-scrolling
 @property (nonatomic, strong, nullable) UIColor *shadowColor;
 @property (nonatomic) CGSize shadowOffset;
+
 
 /**
  * Lays out the scrollview contents, enabling text scrolling if the text will be clipped.

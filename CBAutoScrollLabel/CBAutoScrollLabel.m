@@ -35,6 +35,7 @@ static void each_object(NSArray *objects, void (^block)(id object)) {
 @property (nonatomic, strong) NSArray *labels;
 @property (nonatomic, strong, readonly) UILabel *mainLabel;
 @property (nonatomic, strong) UIScrollView *scrollView;
+@property (nonatomic,strong)CADisplayLink* displayLink;//lh 客制化 2018_06_13
 
 @end
 
@@ -263,6 +264,8 @@ static void each_object(NSArray *objects, void (^block)(id object)) {
     [self applyGradientMaskForFadeLength:self.fadeLength enableFade:YES];
 }
 
+#define kDisplayLinkFPS 60
+
 - (void)scrollLabelIfNeeded {
     if (!self.text.length)
         return;
@@ -283,21 +286,68 @@ static void each_object(NSArray *objects, void (^block)(id object)) {
     [self performSelector:@selector(enableShadow) withObject:nil afterDelay:self.pauseInterval];
 
     // animate the scrolling
-    NSTimeInterval duration = labelWidth / self.scrollSpeed;
-    [UIView animateWithDuration:duration delay:self.pauseInterval options:self.animationOptions | UIViewAnimationOptionAllowUserInteraction animations:^{
-         // adjust offset
-         self.scrollView.contentOffset = (doScrollLeft ? CGPointMake(labelWidth + self.labelSpacing, 0) : CGPointZero);
-     } completion:^(BOOL finished) {
-         _scrolling = NO;
+    
+    if(!self.useCADisplayLink)
+    {
+        /*func 1:by UIViewAnimationOptionCurveLinear moving*/
+        NSTimeInterval duration = labelWidth / self.scrollSpeed;
+        [UIView animateWithDuration:duration delay:self.pauseInterval options:self.animationOptions | UIViewAnimationOptionAllowUserInteraction animations:^{
+            // adjust offset
+            self.scrollView.contentOffset = (doScrollLeft ? CGPointMake(labelWidth + self.labelSpacing, 0) : CGPointZero);
+        } completion:^(BOOL finished) {
+            self->_scrolling = NO;
+            
+            // remove the left shadow
+            [self applyGradientMaskForFadeLength:self.fadeLength enableFade:NO];
+            
+            // setup pause delay/loop
+            if (finished) {
+                [self performSelector:@selector(scrollLabelIfNeeded) withObject:nil];
+            }
+        }];
+    }
+    else
+    {
+        /*func 2:by CADisplayLink */
+        if(_scrolling==NO && !self.displayLink)
+        {
+            self.displayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(updateContentOffsets)];
+            self.displayLink.preferredFramesPerSecond = kDisplayLinkFPS;//60FPS
+            
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(self.pauseInterval * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                [self.displayLink addToRunLoop:[NSRunLoop currentRunLoop] forMode:NSRunLoopCommonModes];
+            });
+        }
+    }
+}
 
-         // remove the left shadow
-         [self applyGradientMaskForFadeLength:self.fadeLength enableFade:NO];
-
-         // setup pause delay/loop
-         if (finished) {
-             [self performSelector:@selector(scrollLabelIfNeeded) withObject:nil];
-         }
-     }];
+-(void)updateContentOffsets
+{
+    CGFloat labelWidth = CGRectGetWidth(self.mainLabel.bounds);
+    BOOL doScrollLeft = (self.scrollDirection == CBAutoScrollDirectionLeft);
+    CGFloat pixelXChangeValuePerFrame = self.scrollSpeed/kDisplayLinkFPS;
+    
+    CGPoint goalContentOffesets = (doScrollLeft ? CGPointMake(labelWidth + self.labelSpacing, 0) : CGPointZero);
+    
+    if(self.scrollView.contentOffset.x == goalContentOffesets.x || goalContentOffesets.x-self.scrollView.contentOffset.x<1  )
+    {
+        // invalidate
+        [self.displayLink setPaused:YES];
+        [self.displayLink invalidate];
+        self.displayLink = nil;
+        [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(updateContentOffsets) object:nil];
+        
+        // user for restart marquue
+        _scrolling = NO;
+        
+        // remove the left shadow
+        [self applyGradientMaskForFadeLength:self.fadeLength enableFade:NO];
+        
+        // setup pause delay/loop
+        [self performSelector:@selector(scrollLabelIfNeeded) withObject:nil];
+    }
+    else
+        self.scrollView.contentOffset = CGPointMake(self.scrollView.contentOffset.x+pixelXChangeValuePerFrame, 0);//1pixel per frame
 }
 
 - (void)refreshLabels {
