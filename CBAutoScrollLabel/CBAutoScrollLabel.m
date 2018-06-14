@@ -344,7 +344,8 @@ static void each_object(NSArray *objects, void (^block)(id object)) {
         [self applyGradientMaskForFadeLength:self.fadeLength enableFade:NO];
         
         // setup pause delay/loop
-        [self performSelector:@selector(scrollLabelIfNeeded) withObject:nil];
+        if(self.enableRepeat)
+            [self performSelector:@selector(scrollLabelIfNeeded) withObject:nil];
     }
     else
         self.scrollView.contentOffset = CGPointMake(self.scrollView.contentOffset.x+pixelXChangeValuePerFrame, 0);//1pixel per frame
